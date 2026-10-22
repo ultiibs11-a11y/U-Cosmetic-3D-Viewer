@@ -1,0 +1,36 @@
+name: Build iPhone IPA (ESign)
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'U-Cosmetic-Viewer-iOS-Beta-Xcode.zip'
+      - '.github/workflows/build-ipa.yml'
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract app project
+        run: unzip -q U-Cosmetic-Viewer-iOS-Beta-Xcode.zip -d source
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: source
+        run: xcodegen generate --spec project.yml
+      - name: Build iPhone app
+        working-directory: source
+        run: |
+          set -o pipefail
+          xcodebuild -project UCosmeticViewer.xcodeproj -scheme UCosmeticViewer -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA for ESign
+        working-directory: source
+        run: |
+          mkdir -p payload/Payload
+          cp -R build/Build/Products/Release-iphoneos/UCosmeticViewer.app payload/Payload/
+          cd payload && /usr/bin/zip -qry ../U-Cosmetic-Viewer-Beta-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: U-Cosmetic-Viewer-Beta-unsigned-IPA
+          path: source/U-Cosmetic-Viewer-Beta-unsigned.ipa
+          if-no-files-found: error
